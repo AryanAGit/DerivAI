@@ -1,22 +1,27 @@
 
+
+############################################################
+
+#########################################################
+
+
 from __future__ import unicode_literals, print_function, division
 from io import open
-import unicodedata
-import re
 import random
-
+import time
+import math
 import torch
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
-
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 SOS_token = 0
 EOS_token = 1
+MAX_LENGTH = 15
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Lang:
     def __init__(self, name):
@@ -39,27 +44,12 @@ class Lang:
         else:
             self.word2count[word] += 1
 
-"""# Turn a Unicode string to plain ASCII, thanks to
-# https://stackoverflow.com/a/518232/2809427
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-# Lowercase, trim, and remove non-letter characters
-def normalizeString(s):
-    s = unicodeToAscii(s.lower().strip())
-    s = re.sub(r"([.!?])", r" \1", s)
-    s = re.sub(r"[^a-zA-Z!?]+", r" ", s)
-    return s.strip()
-"""
-def readLangs(lang1, lang2, reverse=False):
+def readLangs(lang1, lang2, reverse=False, f1 = "functionToken.txt", f2 = "dxToken.txt"):
     print("Reading lines...")
 
     # Read the file and split into lines
-    lines = open('functionToken.txt', encoding='utf-8').readlines()
-    lines2 = open('dxToken.txt', encoding = 'utf-8').readlines()
+    lines = open(f1, encoding='utf-8').readlines()
+    lines2 = open(f2, encoding = 'utf-8').readlines()
     pairs = []
     print("length = " + str(len(lines)))
     # Split every line into pairs and normalize
@@ -83,19 +73,19 @@ def readLangs(lang1, lang2, reverse=False):
 
     return input_lang, output_lang, pairs
 
-MAX_LENGTH = 40
+
 
 
 def filterPair(p):
     return len(p[0].split(' ')) < MAX_LENGTH and \
-        len(p[1].split(' ')) < MAX_LENGTH
+        len(p[1].split(' ')) < MAX_LENGTH and p[0] != "0"
 
 
 def filterPairs(pairs):
     return [pair for pair in pairs if filterPair(pair)]
 
-def prepareData(lang1, lang2, reverse=False):
-    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
+def prepareData(lang1, lang2, reverse=False, f1 = "functionToken.txt", f2 = "dxToken.txt"):
+    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse, f1, f2)
     print("Read %s sentence pairs" % len(pairs))
     pairs = filterPairs(pairs)
     print("Trimmed to %s sentence pairs" % len(pairs))
@@ -108,8 +98,7 @@ def prepareData(lang1, lang2, reverse=False):
     print(output_lang.name, output_lang.n_words)
     return input_lang, output_lang, pairs
 
-input_lang, output_lang, pairs = prepareData('function', 'derivative', False)
-print(random.choice(pairs))
+
 
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size, dropout_p=0.1):
@@ -198,14 +187,16 @@ def tensorFromSentence(lang, sentence):
     indexes.append(EOS_token)
     return torch.tensor(indexes, dtype=torch.long, device=device).view(1, -1)
 
-def tensorsFromPair(pair):
+"""def tensorsFromPair(pair, input_lang, output_lang):
     input_tensor = tensorFromSentence(input_lang, pair[0])
     target_tensor = tensorFromSentence(output_lang, pair[1])
     return (input_tensor, target_tensor)
+"""
 
-def get_dataloader(batch_size):
-    input_lang, output_lang, pairs = prepareData('function', 'derivative', False)
 
+def get_dataloader(batch_size, flip, f1 = "functionToken.txt", f2 = "dxToken.txt"):
+    input_lang, output_lang, pairs = prepareData('function', 'derivative', flip, f1, f2)
+    print(random.choice(pairs))
     n = len(pairs)
     input_ids = np.zeros((n, MAX_LENGTH), dtype=np.int32)
     target_ids = np.zeros((n, MAX_LENGTH), dtype=np.int32)
@@ -223,7 +214,7 @@ def get_dataloader(batch_size):
 
     train_sampler = RandomSampler(train_data)
     train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
-    return input_lang, output_lang, train_dataloader
+    return input_lang, output_lang, pairs, train_dataloader
 
 
 def train_epoch(dataloader, encoder, decoder, encoder_optimizer,
@@ -252,8 +243,6 @@ def train_epoch(dataloader, encoder, decoder, encoder_optimizer,
 
     return total_loss / len(dataloader)
 
-import time
-import math
 
 def asMinutes(s):
     m = math.floor(s / 60)
@@ -296,9 +285,7 @@ def train(train_dataloader, encoder, decoder, n_epochs, learning_rate=0.001,
 
     showPlot(plot_losses)
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import numpy as np
+
 
 def showPlot(points):
     plt.figure()
@@ -326,44 +313,23 @@ def evaluate(encoder, decoder, sentence, input_lang, output_lang):
             decoded_words.append(output_lang.index2word[idx.item()])
     return decoded_words, decoder_attn
 
-def evaluateRandomly(encoder, decoder, n=15):
+def evaluateRandomly(encoder, decoder, pairs, input_lang, output_lang, n=15):
     for i in range(n):
         pair = random.choice(pairs)
         print('>', pair[0])
         print('=', pair[1])
         output_words, _ = evaluate(encoder, decoder, pair[0], input_lang, output_lang)
-        output_sentence = ' '.join(output_words)
+        output_sentence = "".join(output_words)
         print('<', output_sentence)
         print('')
 
-def evalUser(encoder, decoder):
+def evalUser(encoder, decoder, input_lang, output_lang):
     s =input("String to translate: ")
     outputs, _= evaluate(encoder, decoder, s, input_lang, output_lang )
     output = ' '.join(outputs)
     print(output)
 
-hidden_size = 128
-batch_size = 32
 
-input_lang, output_lang, train_dataloader = get_dataloader(batch_size)
-
-encoder = EncoderRNN(input_lang.n_words, hidden_size).to(device)
-decoder = AttnDecoderRNN(hidden_size, output_lang.n_words).to(device)
-
-train(train_dataloader, encoder, decoder, 40, print_every=5, plot_every=5)
-
-
-encoder.eval()
-decoder.eval()
-evaluateRandomly(encoder, decoder)
-
-for i in range(5):
-    evalUser(encoder, decoder)
-
-PATH = './encoder_netpth.'
-PATH2 = './decoder_netpth.'
-torch.save(encoder.state_dict(), PATH)
-torch.save(decoder.state_dict(), PATH2)
 
 def showAttention(input_sentence, output_words, attentions):
     fig = plt.figure()
@@ -383,8 +349,10 @@ def showAttention(input_sentence, output_words, attentions):
     plt.show()
 
 
-def evaluateAndShowAttention(input_sentence):
+def evaluateAndShowAttention(input_sentence, encoder, decoder, input_lang, output_lang):
     output_words, attentions = evaluate(encoder, decoder, input_sentence, input_lang, output_lang)
     print('input =', input_sentence)
     print('output =', ' '.join(output_words))
     showAttention(input_sentence, output_words, attentions[0, :len(output_words), :])
+
+
