@@ -1,5 +1,11 @@
-from runAI2 import  *
-from DerivativeAI import readLangs, get_dataloader
+from runAI import  *
+from modelFuncs import get_dataloader
+from langFuncs import readLangs
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,13 +33,13 @@ def classifyFailed(f, data):
 
 
 
-hidden_size = 128
+hidden_size =128
 batch_size = 32   
-_, _, pairs, dataLoader = get_dataloader(batch_size, False, "testingF.txt", "testingD.txt")
+_, _, pairs, dataLoader = get_dataloader(batch_size, False, "testing3F.txt", "testing3D.txt")
 
 correct = 0
-PATH = './encoder5Ver2_netpth.'
-PATH2 = './decoder5Ver2_netpth.'
+PATH = './encoder15_netpth.'
+PATH2 = './decoder15_netpth.'
 encoder = EncoderRNN(len(functionWords), hidden_size).to(device)
 decoder = AttnDecoderRNN(hidden_size, len(derWords)).to(device)
 typesFile = open('testingTypes.txt', encoding='utf-8').readlines()
@@ -42,13 +48,15 @@ decoder.load_state_dict(torch.load(PATH2))
 failedArray = [0] * 8
 encoder.eval()
 decoder.eval()
-"""
 
-a = 6
+a = 0
 outputs, _ = evaluate (encoder, decoder, pairs[a][0] )
-output = ' '.join(outputs)
+output = ''.join(outputs)
+b = pairs[a][1]
+c = b.replace(' ', '')
+c+="<EOS>"
 print(pairs[a][0])
-print(pairs[a][1])
+print(c)
 print(output)
 with open('failedFunc.txt', 'w') as f1:
     pass
@@ -59,11 +67,9 @@ with open('failedFunc.txt', 'a') as f1:
     
         try:
             outputs, _ = evaluate(encoder, decoder, pair[0])
-            dString = ""
-            for word in d:
-                dString +=word
-            dString += " <EOS>"
-            output = ' '.join(outputs)
+            dString = d.replace(' ', '')
+            dString += "<EOS>"
+            output = ''.join(outputs)
             if output == dString:
                 correct += 1
             else:
@@ -78,6 +84,6 @@ print("trig, poly, exp, log, arc, const, neg, unknown\n")
 print(failedArray)
 print("Percentage correct = " + str(100*correct/len(typesFile)))
 
- """
+
 
 
