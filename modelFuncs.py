@@ -1,3 +1,18 @@
+import torch
+from torch import optim
+import torch.nn as nn
+import torch.nn.functional as F
+import random
+from langFuncs import *
+import numpy as np
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import time
+import math
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 def get_dataloader(batch_size, flip, f1 = "functionToken.txt", f2 = "dxToken.txt"):
     input_lang, output_lang, pairs = prepareData('function', 'derivative', flip, f1, f2)
     for _ in range(5):
@@ -249,5 +264,3 @@ def evaluateAndShowAttention(input_sentence, encoder, decoder, input_lang, outpu
     print('input =', input_sentence)
     print('output =', ' '.join(output_words))
     showAttention(input_sentence, output_words, attentions[0, :len(output_words), :])
-
-
