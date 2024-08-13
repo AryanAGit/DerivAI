@@ -1,3 +1,10 @@
+import re
+import torch
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+SOS_token = 0
+EOS_token = 1
+MAX_LENGTH = 15
+
 def tokenize(f):
     # r'\d|\w+\(|\w+|[^\s\w]'
     token_pattern = re.compile(r'\d|\w+\(|\w+|[^\s\w]')
