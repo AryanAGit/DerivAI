@@ -1,4 +1,4 @@
-
+# user must type the input in a spaced, tokenized manner. ie: x ^ 2 - sin( x )
 
 
 import torch
